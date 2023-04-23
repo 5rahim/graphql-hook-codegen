@@ -12,12 +12,28 @@ export function parseGraphQL(queryString: string): GraphQLParsedContent {
    const fragmentEndIndex = _.findIndex(lines, n => n.startsWith('}'))
    fields = _.clone(lines).slice(fragmentStartIndex + 1, fragmentEndIndex)
    
+   // Get all fragments
+   const fragmentNames: string[] = []
+   lines.map(line => {
+      if(line.startsWith('fragment')) {
+         fragmentNames.push(line.split(/[\s+]/)[1])
+      }
+   })
+   
    /** Get keywords **/
    const keywords: string[] = []
    if (queryString.includes('Get')) keywords.push('Get')
    if (queryString.includes('Update')) keywords.push('Update')
    if (queryString.includes('Create')) keywords.push('Create')
    if (queryString.includes('Delete')) keywords.push('Delete')
+   
+   const fragmentName = lines[fragmentStartIndex].split(/[\s+]/)[1]
+   /* Main fragment */
+   const mainFragment = {
+      hookName: fragmentName ?? '',
+         objectName: !!fragmentName ? _.camelCase(fragmentName) : 'object',
+         objectType: !!fragmentName ? _.startCase(fragmentName)?.split(' ')?.join('') : 'any'
+   }
    
    // Go through each line to get actions
    let actions: GraphQLAction[] = []
@@ -29,19 +45,24 @@ export function parseGraphQL(queryString: string): GraphQLParsedContent {
          const actionName = words[1].split('(')[0] ?? words[1]
          const parameters = line.split(actionName)[1].replace('(', '').replace(')', '').replace(' {', '').replace('{', '').split(',').map(n => n.trim())
          
+         console.log(parameters)
+         
          let nextLine = lines[actualIndex + 1]
+         let returnLine = lines[actualIndex+2].trim()
+         let tableName = nextLine.split('(')[0].trim().replace('update_', '').replace('insert_', '').replace('delete_', '')
+         let originalTableName = nextLine.split('(')[0].trim().replace('update_', '').replace('insert_', '').replace('delete_', '').replace('_one', '').replace('_by_pk', '').replace('_aggregate', '')
          // Define action
          let action: GraphQLAction = {
             id: crypto.randomUUID(),
             type: actionType,
             name: actionName,
-            table: nextLine.split('(')[0].trim().replace('update_', '').replace('insert_', '').replace('delete_', ''), // e.g: agricwork_offers
-            queryReturn: (!nextLine.includes('_by_pk') && !nextLine.includes('_aggregate') && nextLine.includes('where:')) ? 'array' : 'object', // e.g:
-                                                                                                                                                 // agricwork_offers_by_pk
-                                                                                                                                                 // ->
-                                                                                                                                                 // object
-            returnType: 'any',
-            variables: parameters.map(parameter => {
+            // e.g: agricwork_offers
+            table: tableName,
+            originalTable: originalTableName,
+            // e.g: gricwork_offers_by_pk -> object
+            queryReturn: (!nextLine.includes('_by_pk') && !nextLine.includes('_aggregate')) ? 'array' : 'object',
+            returnType: returnLine.includes('...') ? returnLine.replace('...', '')  : 'any',
+            variables: parameters.filter(n => n.length > 0).map(parameter => {
                const name = parameter.split(':')[0].replace('$', '')
                let type = parameter.split(':').map(n => n.trim())[1]
                const required = type.includes('!')
@@ -63,6 +84,9 @@ export function parseGraphQL(queryString: string): GraphQLParsedContent {
                   tsType = 'any'
                } else if (type.includes('_exp')) {
                   tsType = 'any'
+               } else if (type.includes('_set_')) {
+                  const tn = originalTableName.split('_').length > 1 ? originalTableName.split('_').map(n => _.capitalize(n)).join('_') : originalTableName
+                  tsType = tn + '_Set_Input'
                }
                
                return {
@@ -82,13 +106,7 @@ export function parseGraphQL(queryString: string): GraphQLParsedContent {
       }
    })
    
-   const fragmentName = lines[fragmentStartIndex].split(/[\s+]/)[1]
-   
    return {
-      fields, keywords, actions, mutationService: {
-         hookName: fragmentName ?? '',
-         objectName: !!fragmentName ? _.camelCase(fragmentName) : 'object',
-         objectType: !!fragmentName ? _.startCase(fragmentName).split(' ').join('') : 'any'
-      },
+      fields, keywords, actions, mainFragment, fragmentNames,
    }
 }

@@ -3,6 +3,7 @@ export type GraphQLAction = {
    type: 'query' | 'mutation'
    name: string,
    table: string,
+   originalTable: string,
    queryReturn: 'array' | 'object'
    returnType: string
    variables: {
@@ -19,7 +20,8 @@ export type GraphQLParsedContent = {
    fields: string[],
    keywords: string[],
    actions: GraphQLAction[]
-   mutationService: {
+   fragmentNames: string[]
+   mainFragment: {
       hookName: string
       objectName: string
       objectType: string

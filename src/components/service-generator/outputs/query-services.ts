@@ -59,6 +59,17 @@ function formatQueryVariables(variable: {
    }
 }
 
+function formatReturnDataValue(query: GraphQLAction) {
+   let suffix = ''
+   if(query.queryReturn === 'object' && (query.table.includes('_one') || query.table.includes('by_pk')))
+      suffix = ''
+   if(query.queryReturn === 'object' && !(query.table.includes('_one') || query.table.includes('by_pk')))
+      suffix = `[0]`
+   if(query.queryReturn === 'array')
+      suffix = ` ?? []`
+   return `res.data?.${query.table}${suffix}`
+}
+
 export const formatClientServicesFile = (queries: GraphQLAction[]) => {
    
    /**
@@ -87,6 +98,15 @@ export const formatClientServicesFile = (queries: GraphQLAction[]) => {
        * Start query function
        */
       
+      clientServicesBuilder
+         .rawLine(`/*`)
+         .rawLine(`* Query name: ${query.name}`)
+         .rawLine(`* Generated return type: ` + (query.returnType !== 'any' ?  `${query.returnType}${query.queryReturn === 'array' ? '[]' : ''}` + ` or ${query.name.replace('Get', '')}Data` : `${query.name.replace('Get', '')}Data`))
+         .startIf((!query.name.replace('Get', '').endsWith('s') && query.table.endsWith('s') && query.queryReturn === 'array'))
+         .rawLine(`* TODO: /!\\ The name of the query implies that it should return an object, not an array. Please fix the generated type or the query return type.`)
+         .endIf()
+         .rawLine(`*/`)
+      
       clientServicesBuilder.line(`export const use${hookName} = (${hookParametersString}) => {`)
       
       hooks.map(hook => clientServicesBuilder.line(hook))
@@ -94,10 +114,10 @@ export const formatClientServicesFile = (queries: GraphQLAction[]) => {
       clientServicesBuilder
          .space()
          .line(`const res = useClientQuery(${generatedQueryDocument}${queryVariables})`) // React Query
-         .line(`const data = res.data?.${query.table}${query.queryReturn === 'object' ? '' : ' ?? []'}`)
+         .line(`const data = ${formatReturnDataValue(query)}`)
          .space()
          .line(`return {`)
-         .line(`\ndata: data,`)
+         .rawLine(`\ndata: data, // Rename return object/array`)
          .line(`isLoading: res.isLoading,`)
          
          .startIf(query.queryReturn === 'array')
@@ -122,7 +142,7 @@ export const formatClientServicesFile = (queries: GraphQLAction[]) => {
 
 export const formatServerServicesFile = (queries: GraphQLAction[]) => {
    
-   serverServicesBuilder.wipe().line('// xx.server.ts').space()
+   serverServicesBuilder.wipe().line('// services/xx.server.ts').space()
    
    serverServicesBuilder
       // Import generated hooks (queries)
@@ -151,6 +171,15 @@ export const formatServerServicesFile = (queries: GraphQLAction[]) => {
       let hookParametersString = __ret.hookParametersString
       queryVariables = __ret.queryVariables
       
+      serverServicesBuilder
+         .rawLine(`/**`)
+         .rawLine(`* Query name: ${query.name}`)
+         .rawLine(`* Generated return type: ` + (query.returnType !== 'any' ?  `${query.returnType}${query.queryReturn === 'array' ? '[]' : ''}` + ` or ${query.name.replace('Get', '')}Data` : `${query.name.replace('Get', '')}Data`))
+         .startIf((!query.name.replace('Get', '').endsWith('s') && query.table.endsWith('s') && query.queryReturn === 'array'))
+         .rawLine(`* TODO: /!\\ The name of the query implies that it should return an object, not an array. Please fix the generated type or the query return type.`)
+         .endIf()
+         .rawLine(`**/`)
+      
       serverServicesBuilder.line(`export const ${hookName} = cache(async (${hookParametersString}) => {`)
       
       hooks.map(hook => serverServicesBuilder.line(hook))
@@ -159,7 +188,7 @@ export const formatServerServicesFile = (queries: GraphQLAction[]) => {
       serverServicesBuilder
          .space()
          .line(`const res = await useServerQuery(${generatedQueryDocument}${queryVariables})`) // React Query
-         .line(`const data = res?.${query.table}${query.queryReturn === 'object' ? '' : ' ?? []'}`)
+         .line(`const data = ${formatReturnDataValue(query)}`)
          .line(`return data`)
          .space()
          .line('})')

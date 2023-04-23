@@ -10,25 +10,26 @@ function formatVariableDefaultValueFromType(type: string) {
 
 export const formatClientMutationsFile = (mutations: GraphQLAction[], parsedContent: GraphQLParsedContent) => {
    
-   const objectName = parsedContent.mutationService.objectName
-   const objectType = parsedContent.mutationService.objectType
+   const objectName = parsedContent.mainFragment.objectName
+   const objectType = parsedContent.mainFragment.objectType
    
    /**
     * Start mutation function
     */
    
-   clientServicesBuilder.line(`export const use${parsedContent.mutationService.hookName}Service = (role: 'create' | 'update', ${objectName}?: ${objectType}, refetchData?: () => void) => {`)
+   clientServicesBuilder.line(`export const use${parsedContent.mainFragment.hookName}Service = (role: 'create' | 'update', ${objectName}?: ${objectType}) => {`)
                         .line(`const router = useRouter()`)
                         .line(`const links = useLinks()`)
+                        .line(`const toast = useToast()`)
                         .space()
    
    clientServicesBuilder
-      .rawLine(`// TODO: Uncomment or delete`)
-      .rawLine(`// const uploader = useDropzoneHandler("single", { accept: { 'image/*': ['.png', '.jpeg', '.jpg'] }, required: true })`)
+      .rawLine(`// TODO: Uncomment or delete /!\\`)
+      .rawLine(`// const uploadHandler = useDropzoneHandler("single", { accept: { 'image/*': ['.png', '.jpeg', '.jpg'] }, required: true })`)
       .rawLine(`//`)
       .rawLine(`// @example Put inside mutation function`)
-      .rawLine(`// const ${_.camelCase('mutate' + parsedContent.mutationService.hookName.replace('Get', ''))} = async () => {`)
-      .rawLine(`//   if(uploader.canUpload()) {`)
+      .rawLine(`// const ${_.camelCase('mutate' + parsedContent.mainFragment.hookName.replace('Get', ''))} = async () => {`)
+      .rawLine(`//   if(uploadHandler.canUpload()) {`)
       .rawLine(`//      const file = await uplaoder.uploadSingleFile()`)
       .rawLine(`//      /* Mutation functions */`)
       .rawLine(`//   }`)
@@ -42,10 +43,11 @@ export const formatClientMutationsFile = (mutations: GraphQLAction[], parsedCont
       clientServicesBuilder
          .space()
          .line(`const ${mutationName} = useClientMutation(${generatedQueryDocument}, {`) // React Query
-         .line(`\nonSuccess: data => {`)
-         .rawLine('\n// Success event')
+         .line(`\nonSuccess: async (data) => {`)
+         .rawLine('\n/* Success event. e.g: router.push(links.to(s => s.main.home)) */')
+         .line(`toast.successAlert()`)
          .startIf(mutationName.toLowerCase().includes('update'))
-         .line(`refetchData && refetchData()`)
+         .rawLine(`\n/* await queryClient.refetchQueries({ queryKey: ['QueryName'], exact: true }) */`)
          .endIf()
          .line(`},`)
          .line(`})`)
@@ -54,7 +56,10 @@ export const formatClientMutationsFile = (mutations: GraphQLAction[], parsedCont
    // Schema
    clientServicesBuilder
       .space()
-      .line(`const ${_.camelCase(parsedContent.mutationService.hookName)}Schema = createTypesafeFormSchema(({ z, presets }) => z.object({`)
+      .rawLine(`/*`)
+      .rawLine(`* Schema`)
+      .rawLine(`*/`)
+      .line(`const ${_.camelCase(parsedContent.mainFragment.hookName)}Schema = createTypesafeFormSchema(({ z, presets }) => z.object({`)
    
    const schemaVariables = _.uniqBy(_.flatten(parsedContent.actions.map(n => n.variables)), 'name').filter(n => n.include)
    
@@ -66,7 +71,7 @@ export const formatClientMutationsFile = (mutations: GraphQLAction[], parsedCont
          else if (action.type === 'boolean') zodType = `presets.switch`
          else if (action.type === 'number') zodType = `z.number().min(0)`
          else if (action.type === 'any') zodType = `z.any(), // Update type`
-         clientServicesBuilder.line(`\n${field}: ${zodType}${action.required ? `` : `.nullish()`},`)
+         clientServicesBuilder.rawLine(`${field}: ${zodType}${action.required ? `` : `.nullish()`},`)
       }
    })
    
@@ -74,11 +79,16 @@ export const formatClientMutationsFile = (mutations: GraphQLAction[], parsedCont
                         .space()
    
    // Mutation function
-   const inferType = "InferType<" + "typeof " + _.camelCase(parsedContent.mutationService.hookName) + "Schema" + ">"
+   const inferType = "InferType<" + "typeof " + _.camelCase(parsedContent.mainFragment.hookName) + "Schema" + ">"
    
    clientServicesBuilder
-      .space()
-      .line(`const ${_.camelCase('mutate' + parsedContent.mutationService.hookName.replace('Get', ''))} = async (data: ${inferType}) => {`) // React Query
+      .rawLine(`/*`)
+      .rawLine(`* Mutation function`)
+      .rawLine(`*/`)
+   
+   clientServicesBuilder
+      .line(`const ${_.camelCase('mutate' + parsedContent.mainFragment.hookName.replace('Get', ''))} = async (data: ${inferType}) => {`) // React
+                                                                                                                                         // Query
    
    // Create
    clientServicesBuilder
@@ -116,7 +126,9 @@ export const formatClientMutationsFile = (mutations: GraphQLAction[], parsedCont
          .line(`\n...data,`)
       
       excludedVariables.map(variable => {
-         clientServicesBuilder.rawLine(`${variable.name}: ${variable.name === 'id' ? `${objectName}?.id` : formatVariableDefaultValueFromType(variable.type)}, // Update value`)
+         clientServicesBuilder.rawLine(`${variable.name}: ${variable.name === 'id'
+            ? `${objectName}?.id`
+            : formatVariableDefaultValueFromType(variable.type)}, // Update value`)
       })
       
       clientServicesBuilder
@@ -159,12 +171,16 @@ export const formatClientMutationsFile = (mutations: GraphQLAction[], parsedCont
    
    clientServicesBuilder.line(`return {`)
                         .line(`\ndefaultValues,`)
-                        .line(`${_.camelCase(parsedContent.mutationService.hookName)}Schema,`)
-                        .line(`${_.camelCase('mutate' + parsedContent.mutationService.hookName)},`)
-                        .line(`${mutations.filter(n => n.name.toLowerCase().includes('delete')).map(mutation => _.camelCase(mutation.name + ','))},`)
-                        .rawLine(`\n// uploader,`)
+                        .line(`${_.camelCase(parsedContent.mainFragment.hookName)}Schema,`)
+                        .line(`${_.camelCase('mutate' + parsedContent.mainFragment.hookName)},`)
+      // deleteXXXX: deleteXXXXMutation.mutate
+                        .rawLine(`${mutations.filter(n => n.name.toLowerCase().includes('delete')).map(mutation => _.camelCase(mutation.name))[0]}: ${mutations.filter(n => n.name.toLowerCase().includes('delete')).map(mutation => _.camelCase(mutation.name))[0]}Mutation.mutate,`)
+   mutations.filter(n => !n.name.toLowerCase().includes('delete')).map(mutation => {
+      const mutationName = _.camelCase(mutation.name.replace('Get', '') + 'Mutation')
+      clientServicesBuilder.rawLine(`// ${mutationName.replace('Mutation', '')}: ${mutationName}.mutate`)
+   })
+   clientServicesBuilder.rawLine(`// uploadHandler,`)
                         .line('}')
-   
    clientServicesBuilder.space()
                         .line('}')
                         .space()

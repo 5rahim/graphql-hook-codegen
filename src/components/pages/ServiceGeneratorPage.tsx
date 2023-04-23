@@ -17,33 +17,10 @@ export const ServiceGeneratorPage: React.FC<ServiceGeneratorPageProps> = (props)
    
    const { children, ...rest } = props
    
-   const [output, setOutput] = useState('')
-   
-   useEffect(() => {
-      const builder = CodeBuilder.wipe()
-      
-      builder
-         .startIf(false)
-         .line('import { useRouter, useSearchParams } from \'next/navigation\'')
-         .endIf()
-      
-      builder.line('const createMutation = useCreateAgricworkApplicantMutation(queryClient.get(), {')
-             .line('     onSuccess: data => {')
-             .line('        queryClient.successAlert()')
-             .line('     }')
-             .line('})')
-      
-      setOutput(builder.getStringOutput())
-      
-   }, [])
-   
-   
    return (
       <DashboardLayout
          top={<>
-            <SyntaxHighlighter language="tsx" style={vscDarkPlus}>
-               {output}
-            </SyntaxHighlighter>
+         
          </>}
          rightSection={<>
             <ServiceFileOutput />

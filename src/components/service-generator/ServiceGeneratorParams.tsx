@@ -5,6 +5,7 @@ import { SegmentedControl } from '@ui/main/forms/radio/RadioGroup'
 import { Select } from '@ui/main/forms/select/Select'
 import { Title } from '@ui/main/typography/heading/Title'
 import React from 'react'
+import ShowOnly from '../ui/shared/show-only/ShowOnly'
 
 interface ServiceGeneratorParamsProps {
    children?: React.ReactNode
@@ -25,6 +26,9 @@ export const ServiceGeneratorParams: React.FC<ServiceGeneratorParamsProps> = (pr
             return (
                <div key={query.id} className="space-y-2 p-4 rounded-md bg-gray-50">
                   <p className="font-medium text-indigo-500">{query.name}</p>
+                  <ShowOnly when={(!query.name.replace('Get', '').endsWith('s') && query.table.endsWith('s') && query.queryReturn === 'array')}>
+                     <p className="text-orange-600">/!\ The name of the query implies that it should return an object, not an array. Please fix the generated type file or the query return type.</p>
+                  </ShowOnly>
                   <div className="grid grid-cols-3 gap-2">
                      <TextInput
                         label="Query name"
