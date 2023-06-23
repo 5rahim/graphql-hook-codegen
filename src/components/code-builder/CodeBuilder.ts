@@ -1,5 +1,5 @@
-import { js_beautify } from 'js-beautify'
-import _ from 'lodash'
+import { js_beautify } from "js-beautify"
+import _ from "lodash"
 
 export interface CodeBlock {
    getStringOutput: () => string
@@ -27,12 +27,12 @@ export const WrapperFunctionBlock: WrapperFunctionBlock = (name, params, options
    const formattedParams = _.sortBy(params, 'optional').map(param => `${param.name}${param.optional ? '?' : ''}: ${param.type}`)
    return {
       blocks,
-      
+
       addBlock(block: CodeBlock) {
          blocks.push(block)
          return this
       },
-      
+
       getStringOutput() {
          return `
 ${options.exported ? 'export ' : ''}const ${name} = (${formattedParams}) => {
@@ -64,11 +64,11 @@ export const RawLineBlock = (content: string): CodeBlock => {
 
 export interface CodeBuilder extends CodeContainer {
    wipe(): CodeBuilder
-   
+
    startIf(cond: boolean): CodeBuilder
-   
+
    endIf(): CodeBuilder
-   
+
    whenCondition: boolean,
    addBlock: (block: CodeBlock) => CodeBuilder
    line: (value: string) => CodeBuilder
@@ -78,63 +78,65 @@ export interface CodeBuilder extends CodeContainer {
 }
 
 export const CodeBuilder: CodeBuilder = {
-   
+
    blocks: [],
-   
+
    whenCondition: true,
-   
+
    wipe() {
       this.blocks = []
       return this
    },
-   
+
    startIf(cond: boolean) {
       this.whenCondition = cond
       return this
    },
-   
+
    endIf() {
       this.whenCondition = true
       return this
    },
-   
+
    addBlock(block: CodeBlock) {
       if (this.whenCondition) {
          this.blocks.push(block)
       }
       return this
    },
-   
+
    line(content: string) {
       if (this.whenCondition) {
          this.blocks.push(LineBlock(content))
       }
       return this
    },
-   
+
    rawLine(content: string) {
       if (this.whenCondition) {
          this.blocks.push(RawLineBlock(content))
       }
       return this
    },
-   
+
    space() {
       if (this.whenCondition) {
          this.blocks.push(LineBlock(''))
       }
       return this
    },
-   
+
    addImport(content: string) {
       if (this.whenCondition) {
          this.blocks = [LineBlock(content), ...this.blocks]
       }
       return this
    },
-   
+
    getStringOutput() {
-      return js_beautify(this.blocks.map(block => block.getStringOutput()).join(' '), { brace_style: 'preserve-inline', indent_with_tabs: true, indent_char: "   " })
+      return js_beautify(this.blocks.map(block => block.getStringOutput()).join(" "), {
+         brace_style: "preserve-inline", indent_with_tabs: true, indent_char: "   ",
+      })
    },
-   
+
 }
